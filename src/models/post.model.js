@@ -19,6 +19,10 @@ const postSchema = new Schema(
     image: {
       type: String, //cloudinary url
     },
+    viewCount: {
+      type: Number,
+      default: 0,
+    },
 
     description: {
       type: String,

@@ -21,19 +21,12 @@ const challengeSchema = new Schema(
         ref: "Progress",
       },
     ],
-
     hashtag: [
       {
         type: Schema.Types.ObjectId,
         ref: "Tag",
       },
     ],
-
-    views: {
-      type: Number,
-      default: 0,
-    },
-
     days: {
       type: Number,
       required: true,
@@ -51,6 +44,10 @@ const challengeSchema = new Schema(
 
     endDate: {
       type: Date,
+    },
+    viewCount: {
+      type: Number,
+      default: 0,
     },
   },
   { timestamps: true }
