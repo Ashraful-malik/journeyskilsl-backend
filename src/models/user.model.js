@@ -12,6 +12,9 @@ const userSchema = new Schema(
       trim: true,
       index: true,
     },
+    profileImage: {
+      type: String,
+    },
     email: {
       type: String,
       required: true,
@@ -24,11 +27,6 @@ const userSchema = new Schema(
       type: String,
       required: true,
       trim: true,
-    },
-
-    profilePic: {
-      type: String, //cloudinary url
-      required: true,
     },
 
     coverImage: {
