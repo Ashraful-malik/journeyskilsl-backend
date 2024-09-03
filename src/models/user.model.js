@@ -15,6 +15,12 @@ const userSchema = new Schema(
     profileImage: {
       type: String,
     },
+    profileImagePublicId: {
+      type: String,
+    },
+    coverImagePublicId: {
+      type: String,
+    },
     email: {
       type: String,
       required: true,

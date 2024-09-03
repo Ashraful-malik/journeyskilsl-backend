@@ -1,7 +1,13 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import fs from "fs";
+
+import {
+  deleteFileOnCloudinary,
+  uploadOnCloudinary,
+} from "../utils/cloudinary.js";
+
 import { ApiResponse } from "../utils/apiResponse.js";
 import jwt from "jsonwebtoken";
 
@@ -42,23 +48,14 @@ const registerUser = asyncHandler(async (req, res) => {
 
   const profileImageLocalPath = req.files?.profileImage[0]?.path;
 
-  let coverImageLocalPath;
-
-  if (
-    req.files &&
-    Array.isArray(req.files.coverImage) &&
-    req.files.coverImage.length > 0
-  ) {
-    coverImageLocalPath = req.files.coverImage[0].path;
-  }
-
   if (!profileImageLocalPath) {
     throw new ApiError(400, "profile image file is required");
   }
 
-  const profileImage = await uploadOnCloudinary(profileImageLocalPath);
-
-  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+  const profileImage = await uploadOnCloudinary(
+    profileImageLocalPath,
+    "profile_Image"
+  );
 
   if (!profileImage) {
     throw new ApiError(400, "profile image file is required");
@@ -66,8 +63,8 @@ const registerUser = asyncHandler(async (req, res) => {
 
   const user = await User.create({
     fullName,
-    profileImage: profileImage,
-    coverImage: coverImage || "",
+    profileImage: profileImage.url,
+    profileImagePublicId: profileImage.publicId,
     email,
     password,
     username: username.toLowerCase(),
@@ -264,25 +261,33 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 //update profile image
 const updateUserProfileImage = asyncHandler(async (req, res) => {
   const profileImageLocalPath = req.file?.path;
+  const userId = req.user?._id;
 
   if (!profileImageLocalPath) {
-    throw new ApiError(400, "profile image missing");
+    throw new ApiError(400, "profile image is missing");
   }
 
-  const profileImage = await uploadOnCloudinary(profileImageLocalPath);
+  const user = await User.findById(userId).select("-password");
 
-  if (!profileImage) {
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+  if (user.profileImagePublicId) {
+    await deleteFileOnCloudinary(user.profileImagePublicId);
+  }
+
+  // Upload the new profile picture
+  const newProfileImage = await uploadOnCloudinary(
+    profileImageLocalPath,
+    "profile_Image"
+  );
+  if (!newProfileImage) {
     throw new ApiError(400, "Error while uploading on Avatar");
   }
-  const user = await User.findByIdAndUpdate(
-    req.user?._id,
-    {
-      $set: {
-        profileImage: profileImage,
-      },
-    },
-    { new: true }
-  ).select("-password");
+
+  user.profileImage = newProfileImage.url;
+  user.profileImagePublicId = newProfileImage.publicId;
+  await user.save();
 
   return res
     .status(200)
