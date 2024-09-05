@@ -1,7 +1,6 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
 import { User } from "../models/user.model.js";
-import fs from "fs";
 
 import {
   deleteFileOnCloudinary,
@@ -74,7 +73,7 @@ const registerUser = asyncHandler(async (req, res) => {
     "-password -refreshToken"
   );
   if (!createdUser) {
-    throw new ApiError(500, "Something while wrong while registering user");
+    throw new ApiError(500, "Something went wrong while registering user");
   }
   return res
     .status(201)
@@ -128,8 +127,8 @@ const logoutUser = asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(
     req.user._id,
     {
-      $set: {
-        refreshToken: undefined,
+      $unset: {
+        refreshToken: 1,
       },
     },
     {
@@ -197,6 +196,13 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   }
 });
 
+//get current user
+const getCurrentUser = asyncHandler(async (req, res) => {
+  return res
+    .status(200)
+    .json(new ApiResponse(200, req.user, "Current user fetched successfully"));
+});
+
 // change current password
 const changeCurrentPassword = asyncHandler(async (req, res) => {
   const { oldPassword, newPassword } = req.body;
@@ -215,11 +221,26 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Password changed Successfully"));
 });
 
-//get current user
-const getCurrentUser = asyncHandler(async (req, res) => {
+const changeCurrentEmail = asyncHandler(async (req, res) => {
+  const newEmail = req.body;
+  const userId = req.user?._id;
+
+  if (!newEmail) {
+    throw new ApiError(400, "Email address is required");
+  }
+
+  const updatedEmail = await User.findOneAndUpdate(
+    { _id: userId, email: { $ne: newEmail } }, //$ne operator means not equal
+    { email },
+    { new: true }
+  ).select("-passwords");
+
+  if (!updatedEmail) {
+    throw new ApiError(409, "Email address already in use");
+  }
   return res
     .status(200)
-    .json(new ApiResponse(200, req.user, "Current user fetched successfully"));
+    .json(new ApiResponse(200, updatedEmail, "email change successfully"));
 });
 
 // update user details
@@ -237,8 +258,6 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
   if (bio) updateFields.bio = bio;
   if (dob) updateFields.dob = dob;
   if (location) updateFields.location = location;
-
-  console.log(updateFields);
 
   const user = await User.findByIdAndUpdate(
     req.user?._id,
@@ -297,25 +316,30 @@ const updateUserProfileImage = asyncHandler(async (req, res) => {
 //update coverImage
 const updateCoverImage = asyncHandler(async (req, res) => {
   const coverImageLocalPath = req.file?.path;
+  const userId = req.user?._id;
 
-  if (!coverImageLocalPath) {
-    throw new ApiError(400, "profile image missing");
+  const user = await User.findById(userId).select("-password");
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
   }
 
-  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+  if (user.profileImagePublicId) {
+    await deleteFileOnCloudinary(user.coverImagePublicId);
+  }
 
-  if (!coverImage) {
+  const newCoverImage = await uploadOnCloudinary(
+    coverImageLocalPath,
+    "cover_image"
+  );
+
+  if (!newCoverImage) {
     throw new ApiError(400, "Error while uploading on Avatar");
   }
-  const user = await User.findByIdAndUpdate(
-    req.user?._id,
-    {
-      $set: {
-        coverImage: coverImage,
-      },
-    },
-    { new: true }
-  ).select("-password");
+
+  user.coverImage = newCoverImage.url;
+  user.coverImagePublicId = newCoverImage.publicId;
+  await user.save();
 
   return res
     .status(200)
@@ -332,4 +356,5 @@ export {
   updateAccountDetails,
   updateUserProfileImage,
   updateCoverImage,
+  changeCurrentEmail,
 };

@@ -17,9 +17,11 @@ app.use(express.static("public"));
 app.use(cookieParser());
 
 //routes import
-import useRouter from "./routes/user.routes.js";
+import userroutes from "./routes/user.routes.js";
+import challenge from "./routes/challenge.routes.js";
 
 //routes declaration
-app.use("/api/v1/users", useRouter);
+app.use("/api/v1/users", userroutes);
+app.use("/api/v1/users", challenge);
 
 export { app };
