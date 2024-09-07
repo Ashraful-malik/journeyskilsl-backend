@@ -7,6 +7,12 @@ const challengeSchema = new Schema(
       ref: "User",
     },
 
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "Post",
+      required: true,
+    },
+
     challengeName: {
       type: String,
       required: true,
@@ -54,7 +60,6 @@ const challengeSchema = new Schema(
 );
 
 challengeSchema.index({ hashtags: 1 });
-ChallengeSchema.index({ isPublic: 1 });
-
+challengeSchema.index({ isPublic: 1 });
 
 export const Challenge = mongoose.model("Challenge", challengeSchema);
