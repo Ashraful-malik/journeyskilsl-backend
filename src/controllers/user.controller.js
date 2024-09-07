@@ -221,6 +221,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Password changed Successfully"));
 });
 
+//change email address
 const changeCurrentEmail = asyncHandler(async (req, res) => {
   const newEmail = req.body;
   const userId = req.user?._id;

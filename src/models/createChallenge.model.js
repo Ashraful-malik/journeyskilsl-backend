@@ -24,7 +24,7 @@ const challengeSchema = new Schema(
     hashtags: [
       {
         type: Schema.Types.ObjectId,
-        ref: "Hashtag",
+        ref: "Tag",
       },
     ],
     days: {
@@ -35,12 +35,6 @@ const challengeSchema = new Schema(
     isPublic: {
       type: Boolean,
       default: true,
-      set: (value) => {
-        if (typeof value === "string") {
-          return value.toLowerCase() === "true";
-        }
-        return Boolean(value);
-      },
     },
 
     startDate: {
@@ -60,5 +54,7 @@ const challengeSchema = new Schema(
 );
 
 challengeSchema.index({ hashtags: 1 });
+ChallengeSchema.index({ isPublic: 1 });
+
 
 export const Challenge = mongoose.model("Challenge", challengeSchema);

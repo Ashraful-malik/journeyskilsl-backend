@@ -1,37 +1,65 @@
-import { Hashtag } from "../models/tag.model.js";
+import { Tag } from "../models/tag.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { Challenge } from "../models/createChallenge.model.js";
 
-const calculateEndDate = (days) => {
+const calculateEndDate = async (days) => {
   const endDate = new Date();
   return endDate.setDate(endDate.getDate() + days);
 };
 
-const createOrUpdateHashtags = async (hashtags) => {
-  const hashtagIds = [];
+//createOrUpdateTags
+const createOrUpdateTags = async (Tags, challenge) => {
+  if (Array.isArray(Tags)) {
+    const TagIds = [];
 
-  for (const tag of hashtags) {
-    if (!tag.trim()) {
-      throw new ApiError(400, "Hashtag tag cannot be empty.");
+    for (const tag of Tags) {
+      if (!tag.trim()) {
+        throw new ApiError(400, "Tag tag cannot be empty.");
+      }
+
+      let Tag = await Tag.findOne({ tag: tag.toLowerCase().trim() });
+
+      if (!Tag) {
+        Tag = new Tag({ tag: tag.toLowerCase().trim() });
+        await Tag.save();
+      }
+      // Ensure the Tag is linked to the challenge
+      if (Tag.challenge.length === 0) {
+        Tag.challenge.push(challenge._id);
+        await Tag.save();
+      }
+
+      TagIds.push(Tag._id);
     }
-
-    let hashtag = await Hashtag.findOne({ tag: tag.toLowerCase().trim() });
-
-    if (!hashtag) {
-      hashtag = new Hashtag({ tag: tag.toLowerCase().trim() });
-      await hashtag.save();
-    }
-
-    hashtagIds.push(hashtag._id);
+    return TagIds;
   }
-
-  return hashtagIds;
 };
 
+//removeUnlinkedTags
+const removeUnlinkedTags = async () => {
+  try {
+    const allTags = await Tag.find({});
+
+    // Loop through each tag and check if it's linked to any challenge
+    for (const tag of allTags) {
+      const isLinked = await Challenge.exists({ Tags: tag._id });
+
+      if (!isLinked) {
+        await Tag.deleteOne({ _id: tag._id });
+        // console.log(`Deleted unlinked Tag: ${tag.tag}`);
+      }
+    }
+    // console.log("Finished removing unlinked Tags.");
+  } catch (error) {
+    throw new ApiError(400, error, "Error removing unlinked Tags");
+  }
+};
+
+//create challenge
 const createChallenge = asyncHandler(async (req, res) => {
-  const { challengeName, description, days, hashtags, isPublic } = req.body;
+  const { challengeName, description, days, Tags, isPublic } = req.body;
   const userId = req.user?._id;
 
   // Input validation
@@ -41,7 +69,7 @@ const createChallenge = asyncHandler(async (req, res) => {
     !description ||
     !days ||
     !isPublic ||
-    !Array.isArray(hashtags)
+    !Array.isArray(Tags)
   ) {
     throw new ApiError(400, "all field are required");
   }
@@ -56,7 +84,7 @@ const createChallenge = asyncHandler(async (req, res) => {
       : Boolean(isPublic);
 
   //calculating end date
-  const endDate = calculateEndDate(days);
+  const endDate = await calculateEndDate(days);
 
   try {
     const challenge = new Challenge({
@@ -67,20 +95,10 @@ const createChallenge = asyncHandler(async (req, res) => {
       days,
       isPublic: isPublicBoolean,
     });
-    const hashTagsIds = [];
 
-    for (const tag of hashtags) {
-      let hashtag = await Hashtag.findOne({ tag: tag.toLowerCase().trim() });
+    const updatedTagIds = await createOrUpdateTags(Tags || [], challenge);
 
-      if (!hashtag) {
-        hashtag = new Hashtag({ tag: tag.toLowerCase().trim() });
-        await hashtag.save();
-      }
-      await hashtag.challenge.push(challenge._id);
-      await hashtag.save();
-      hashTagsIds.push(hashtag._id);
-    }
-    challenge.hashtags = hashTagsIds;
+    challenge.Tags = updatedTagIds;
     const saveChallenge = await challenge.save();
 
     return res
@@ -104,48 +122,197 @@ const createChallenge = asyncHandler(async (req, res) => {
 
 //updating challenge
 const updateChallenge = asyncHandler(async (req, res) => {
-  const { challengeName, description, days, hashtags, isPublic } = req.body;
+  const { challengeName, description, days, Tags, isPublic } = req.body;
   const { id } = req.params; // Challenge ID from the URL
 
-  if (!title && !description && !days && !hashtags && !isPublic) {
+  if (!challengeName && !description && !days && !Tags && !isPublic) {
     return res
       .status(400)
       .json({ error: "At least one field is required to update." });
   }
 
   if (days !== undefined && days <= 0) {
-    throw new ApiError(400, "Days should be a positive number.");
+    throw new ApiError(
+      400,
+      "Days should be a positive number. Please enter a positive number."
+    );
   }
   try {
     const challenge = await Challenge.findById(id);
     if (!challenge) {
       throw new ApiError(404, "Challenge not found");
     }
-    if (title) challenge.challengeName = challengeName;
+
+    if (challengeName) challenge.challengeName = challengeName;
     if (description) challenge.description = description;
+    if (isPublic) challenge.isPublic = isPublic;
+    if (days) challenge.days = days;
     if (days) {
-      challenge.endDate = calculateEndDate(days);
+      challenge.endDate = await calculateEndDate(days);
     }
+    const updatedTagIds = await createOrUpdateTags(Tags || [], challenge);
 
-    const existingHashtags = challenge.hashtags.map((id) => id.toString()); // Convert ObjectId to string for comparison
+    challenge.Tags = updatedTagIds;
+    const updatedChallenge = await challenge.save();
 
-    const hashtagIds = createOrUpdateHashtags(hashtags);
+    console.log("updatedChallenge", updatedChallenge.Tags);
 
-    // Remove old hashtags not in the updated list
-    const hashtagsToRemove = existingHashtags.filter(
-      (id) => !hashtagIds.includes(id)
+    await removeUnlinkedTags();
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, updatedChallenge, "challenge update successfully")
+      );
+  } catch (error) {
+    console.log(error.message);
+
+    throw new ApiError(
+      400,
+      error.message,
+      "'Failed to update challenge. Please try again.' "
     );
+  }
+});
 
-    for (const id of hashtagsToRemove) {
-      await Hashtag.findByIdAndUpdate(id, {
-        $pull: { challenges: challenge._id },
-      });
+const deleteChallenge = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const challenge = await Challenge.findById(id);
+    if (!challenge) {
+      throw new ApiError(404, "Challenge not found");
     }
+
+    const deletedChallenge = await Challenge.deleteOne({ _id: id });
+    await removeUnlinkedTags();
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, deletedChallenge, "challenge deleted successfully")
+      );
+  } catch (error) {
+    console.log(error);
+    throw new ApiError(
+      400,
+      error,
+      "Failed to delete challenge. Please try again."
+    );
+  }
+});
+
+const getAllUserChallenges = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const userId = req.user?._id;
+  const skip = (page - 1) * limit;
+
+  try {
+    const challenges = await Challenge.find({ challengeOwner: userId })
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 })
+      .populate("challengeOwner")
+      .populate("hashtags");
+
+    if (!challenges) {
+      throw new ApiError(404, "Challenges not found");
+    }
+
+    const total = await Challenge.countDocuments({ challengeOwner: userId });
+    const totalPages = Math.ceil(total / limit);
+    return res
+      .status(200)
+      .json(new ApiResponse(200, { challenges, totalPages }));
+  } catch (error) {
+    console.log(error);
+    throw new ApiError(
+      400,
+      error,
+      "Failed to get challenges. Please try again."
+    );
+  }
+});
+
+// const getAllChallenges = asyncHandler(async (req, res) => {
+//   const page = parseInt(req.query.page) || 1;
+//   const limit = parseInt(req.query.limit) || 10;
+//   const skip = (page - 1) * limit;
+
+//   try {
+//     const allChallenges = await Challenge.countDocuments({ isPublic: true })
+//       .skip(skip)
+//       .limit(limit)
+//       .sort({ createdAt: -1 });
+
+//     if (!allChallenges || allChallenges.length === 0) {
+//       return res.status(404).json({ error: "No challenges found." });
+//     }
+//     const total = await Challenge.countDocuments({ isPublic: true });
+//     const totalPages = Math.ceil(total / limit);
+
+//     return res
+//       .status(200)
+//       .json(
+//         new ApiResponse(
+//           200,
+//           { allChallenges, currentPage: page, totalPages: totalPages,totalCalledChallenges:total },
+//           "Challenge fetch successfully"
+//         )
+//       );
+//   } catch (error) {
+//     console.log(error);
+//     throw new ApiError(500, "An error occurred while retrieving challenges.");
+//   }
+// });
+
+const getAllChallenges = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  try {
+    const pipeline = [
+      { $match: { isPublic: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "challengeOwner",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: $user },
+      {
+        $project: {
+          "user._id": 1,
+          "user.fullName": 1,
+          "user.username": 1,
+          "user.profileImage": 1,
+          challengeName: 1,
+          description: 1,
+          createdAt: 1,
+          endDate: 1,
+        },
+      },
+      {
+        $lookup: {
+          from: "tags",
+          localField: "hashtags",
+          foreignField: "_id",
+          as: "allHashtags",
+        },
+      },
+      {},
+    ];
   } catch (error) {}
 });
 
-const deleteChallenge = asyncHandler(async (req, res) => {});
-
-const getAllChallenges = asyncHandler(async (req, res) => {});
-
-export { createChallenge, updateChallenge, deleteChallenge, getAllChallenges };
+export {
+  createChallenge,
+  updateChallenge,
+  deleteChallenge,
+  getAllUserChallenges,
+  getAllChallenges,
+};
