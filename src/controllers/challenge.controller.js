@@ -205,7 +205,7 @@ const deleteChallenge = asyncHandler(async (req, res) => {
 const getAllUserChallenges = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
-  const userId = req.user?._id;
+  const userId = req.params;
   const skip = (page - 1) * limit;
 
   try {
@@ -235,38 +235,7 @@ const getAllUserChallenges = asyncHandler(async (req, res) => {
   }
 });
 
-// const getAllChallenges = asyncHandler(async (req, res) => {
-//   const page = parseInt(req.query.page) || 1;
-//   const limit = parseInt(req.query.limit) || 10;
-//   const skip = (page - 1) * limit;
-
-//   try {
-//     const allChallenges = await Challenge.countDocuments({ isPublic: true })
-//       .skip(skip)
-//       .limit(limit)
-//       .sort({ createdAt: -1 });
-
-//     if (!allChallenges || allChallenges.length === 0) {
-//       return res.status(404).json({ error: "No challenges found." });
-//     }
-//     const total = await Challenge.countDocuments({ isPublic: true });
-//     const totalPages = Math.ceil(total / limit);
-
-//     return res
-//       .status(200)
-//       .json(
-//         new ApiResponse(
-//           200,
-//           { allChallenges, currentPage: page, totalPages: totalPages,totalCalledChallenges:total },
-//           "Challenge fetch successfully"
-//         )
-//       );
-//   } catch (error) {
-//     console.log(error);
-//     throw new ApiError(500, "An error occurred while retrieving challenges.");
-//   }
-// });
-
+//get all challenges
 const getAllChallenges = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
@@ -280,33 +249,73 @@ const getAllChallenges = asyncHandler(async (req, res) => {
           from: "users",
           localField: "challengeOwner",
           foreignField: "_id",
-          as: "user",
+          as: "owner",
         },
       },
-      { $unwind: $user },
-      {
-        $project: {
-          "user._id": 1,
-          "user.fullName": 1,
-          "user.username": 1,
-          "user.profileImage": 1,
-          challengeName: 1,
-          description: 1,
-          createdAt: 1,
-          endDate: 1,
-        },
-      },
+      // Unwind the user array (since $lookup returns an array)
+      { $unwind: "$owner" },
+
       {
         $lookup: {
           from: "tags",
           localField: "hashtags",
           foreignField: "_id",
-          as: "allHashtags",
+          as: "allChallengeHashtags",
         },
       },
-      {},
+      {
+        $project: {
+          "owner._id": 1,
+          "owner.fullName": 1,
+          "owner.username": 1,
+          "owner.profileImage": 1,
+          challengeName: 1,
+          description: 1,
+          hashtags: 1,
+          createdAt: 1,
+          endDate: 1,
+          "allChallengeHashtags.tag": 1,
+        },
+      },
+
+      {
+        $facet: {
+          // $facet is an aggregation operator that allows you to split the data into multiple groups and perform different aggregation operations on each group
+          // It returns an object with a single field for each group, where the value of the field is an array of documents that belong to that group
+          // In this case, we are grouping by the "allHashtags" field and returning an array of all the tags associated with each challenge
+          challenges: [
+            { $sort: { createdAt: 1 } },
+            { $skip: skip },
+            { $limit: limit },
+          ],
+          totalCount: [{ $count: "count" }],
+        },
+      },
     ];
-  } catch (error) {}
+    const result = await Challenge.aggregate(pipeline);
+    console.log(result);
+
+    const allChallenges = result[0].challenges;
+    const total =
+      result[0].totalCount.length > 0 ? result[0].totalCount[0].count : 0;
+
+    const totalPages = Math.ceil(total / limit);
+
+    if (!allChallenges || allChallenges.length === 0) {
+      throw new ApiError(404, "No challenge found");
+    }
+    return res.status(200).json(
+      new ApiResponse(200, {
+        allChallenges,
+        currentPage: page,
+        totalPages: totalPages,
+        totalCalledChallenges: total,
+      })
+    );
+  } catch (error) {
+    console.log(error);
+    throw new ApiError("500", "An error occurred while receiving challenges");
+  }
 });
 
 export {
