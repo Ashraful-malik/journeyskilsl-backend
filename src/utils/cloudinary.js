@@ -12,7 +12,6 @@ const uploadOnCloudinary = async (localFilePath, folderName) => {
     if (!localFilePath) return null;
 
     //upload file on cloudinary
-
     const response = await cloudinary.uploader.upload(localFilePath, {
       resource_type: "auto",
       folder: folderName,
@@ -26,9 +25,9 @@ const uploadOnCloudinary = async (localFilePath, folderName) => {
   }
 };
 
-const deleteFileOnCloudinary = async (profileImagePublicId) => {
+const deleteFileOnCloudinary = async (publicId) => {
   try {
-    await cloudinary.uploader.destroy(profileImagePublicId);
+    await cloudinary.uploader.destroy(publicId);
   } catch (error) {
     console.log(error.message);
   }

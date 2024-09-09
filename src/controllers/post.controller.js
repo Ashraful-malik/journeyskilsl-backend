@@ -41,6 +41,7 @@ const createPost = asyncHandler(async (req, res) => {
     );
 
     if (!uploadedImage) {
+      deleteTemporaryFile(req.file.path);
       throw new ApiError(400, "Error while uploading image on cloudinary");
     }
 
@@ -112,6 +113,7 @@ const editPost = asyncHandler(async (req, res) => {
     );
 
     if (!uploadedImage) {
+      deleteTemporaryFile(req.file.path);
       throw new ApiError(400, "Error while uploading image on cloudinary");
     }
 

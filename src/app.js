@@ -19,9 +19,11 @@ app.use(cookieParser());
 //routes import
 import userroutes from "./routes/user.routes.js";
 import challenge from "./routes/challenge.routes.js";
+import post from "./routes/post.routes.js";
 
 //routes declaration
 app.use("/api/v1/users", userroutes);
 app.use("/api/v1/users", challenge);
+app.use("/api/v1/users", post);
 
 export { app };

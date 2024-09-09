@@ -19,6 +19,11 @@ const postSchema = new Schema(
     image: {
       type: String, //cloudinary url
     },
+
+    imagePublicId: {
+      type: String, //cloudinary public id
+    },
+
     viewCount: {
       type: Number,
       default: 0,
@@ -34,5 +39,7 @@ const postSchema = new Schema(
   },
   { timestamps: true }
 );
+
+postSchema.index({ challengeId: 1 });
 
 export const Post = mongoose.model("Post", postSchema);
