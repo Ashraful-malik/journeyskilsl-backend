@@ -7,6 +7,12 @@ const challengeProgressSchema = new Schema(
       ref: "Challenge",
       required: true,
     },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+
     week: {
       type: Number,
       required: true,
