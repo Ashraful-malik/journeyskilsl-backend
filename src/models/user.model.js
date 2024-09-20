@@ -60,6 +60,12 @@ const userSchema = new Schema(
     refreshToken: {
       type: String,
     },
+    badges: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Badge",
+      },
+    ], // Store earned badges
   },
 
   { timestamps: true }

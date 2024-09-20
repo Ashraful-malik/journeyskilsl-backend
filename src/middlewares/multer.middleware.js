@@ -1,4 +1,5 @@
 import multer from "multer";
+import { IMAGE_FILE_SIZE_LIMIT } from "../constants.js";
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -9,6 +10,7 @@ const storage = multer.diskStorage({
 
     cb(null, file.originalname + "-" + uniqueSuffix);
   },
+  limits: { fileSize: IMAGE_FILE_SIZE_LIMIT },
 });
 
 export const upload = multer({ storage: storage });

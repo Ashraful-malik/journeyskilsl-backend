@@ -1,6 +1,11 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
 import { User } from "../models/user.model.js";
+import {
+  CURRENT_DATE,
+  LAUNCH_END_DATE,
+  LAUNCH_START_DATE,
+} from "../constants.js";
 
 import {
   deleteFileOnCloudinary,
@@ -69,9 +74,24 @@ const registerUser = asyncHandler(async (req, res) => {
     username: username.toLowerCase(),
   });
 
+  //for giving badge
+
+  // if (CURRENT_DATE >= LAUNCH_START_DATE && CURRENT_DATE <= LAUNCH_END_DATE) {
+  //   user.badge.push(process.env.EARLY_USER_BADGE_ID);
+  //   await user.save({ validateBeforeSave: false });
+
+  //   res.status(200).json({
+  //     message:
+  //       "Thank you for joining us during our launch month! You have earned a special badge.",
+  //     showPopup: true,
+  //     badgeUrl: "badge-image-url", // URL for the badge image
+  //   });
+  // }
+
   const createdUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
+
   if (!createdUser) {
     throw new ApiError(500, "Something went wrong while registering user");
   }

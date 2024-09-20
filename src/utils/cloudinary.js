@@ -15,6 +15,7 @@ const uploadOnCloudinary = async (localFilePath, folderName) => {
     const response = await cloudinary.uploader.upload(localFilePath, {
       resource_type: "auto",
       folder: folderName,
+      transformation: { fetch_format: "auto", quality: "auto" },
     });
     //file has been uploaded successfully
     fs.unlinkSync(localFilePath);

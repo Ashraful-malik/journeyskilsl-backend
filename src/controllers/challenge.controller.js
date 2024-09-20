@@ -10,28 +10,29 @@ const calculateEndDate = async (days) => {
 };
 
 //createOrUpdateTags
-const createOrUpdateTags = async (Tags, challenge) => {
-  if (Array.isArray(Tags)) {
+const createOrUpdateTags = async (tags, challenge) => {
+  if (Array.isArray(tags)) {
     const TagIds = [];
 
-    for (const tag of Tags) {
+    for (const tag of tags) {
       if (!tag.trim()) {
         throw new ApiError(400, "Tag tag cannot be empty.");
       }
 
-      let Tag = await Tag.findOne({ tag: tag.toLowerCase().trim() });
+      let hashtag = await Tag.findOne({ tag: tag.toLowerCase().trim() });
+      // console.log("Tag=>", hashtag);
 
-      if (!Tag) {
-        Tag = new Tag({ tag: tag.toLowerCase().trim() });
-        await Tag.save();
+      if (!hashtag) {
+        const saveTag = new Tag({ tag: tag.toLowerCase().trim() });
+        await saveTag.save();
       }
       // Ensure the Tag is linked to the challenge
-      if (Tag.challenge.length === 0) {
-        Tag.challenge.push(challenge._id);
-        await Tag.save();
+      if (hashtag.challenge.length === 0) {
+        hashtag.challenge.push(challenge._id);
+        await hashtag.save();
       }
 
-      TagIds.push(Tag._id);
+      TagIds.push(hashtag._id);
     }
     return TagIds;
   }
@@ -44,7 +45,7 @@ const removeUnlinkedTags = async () => {
 
     // Loop through each tag and check if it's linked to any challenge
     for (const tag of allTags) {
-      const isLinked = await Challenge.exists({ Tags: tag._id });
+      const isLinked = await Challenge.exists({ tags: tag._id });
 
       if (!isLinked) {
         await Tag.deleteOne({ _id: tag._id });
@@ -57,19 +58,26 @@ const removeUnlinkedTags = async () => {
   }
 };
 
+//calculatePostsRequired
+function calculatePostsRequired(durationInDays, postsPerInterval) {
+  return Math.floor(durationInDays / postsPerInterval); // Example: 45 days -> 15 posts
+}
+
 //create challenge
 const createChallenge = asyncHandler(async (req, res) => {
-  const { challengeName, description, days, Tags, isPublic } = req.body;
+  const { challengeName, description, days, tags, isPublic } = req.body;
   const userId = req.user?._id;
+  const tasksRequired = calculatePostsRequired(days, 2); // Automatically calculated
+
+  console.log(challengeName);
 
   // Input validation
   if (
-    !userId ||
     !challengeName ||
     !description ||
     !days ||
     !isPublic ||
-    !Array.isArray(Tags)
+    !Array.isArray(tags)
   ) {
     throw new ApiError(400, "all field are required");
   }
@@ -85,6 +93,7 @@ const createChallenge = asyncHandler(async (req, res) => {
 
   //calculating end date
   const endDate = await calculateEndDate(days);
+  const consistencyIncentiveDays = Math.ceil(days / tasksRequired);
 
   try {
     const challenge = new Challenge({
@@ -94,11 +103,13 @@ const createChallenge = asyncHandler(async (req, res) => {
       endDate,
       days,
       isPublic: isPublicBoolean,
+      tasksRequired,
+      consistencyIncentiveDays,
     });
 
-    const updatedTagIds = await createOrUpdateTags(Tags || [], challenge);
+    const updatedTagIds = await createOrUpdateTags(tags || [], challenge);
 
-    challenge.Tags = updatedTagIds;
+    challenge.tags = updatedTagIds;
     const saveChallenge = await challenge.save();
 
     return res
@@ -122,10 +133,10 @@ const createChallenge = asyncHandler(async (req, res) => {
 
 //updating challenge
 const updateChallenge = asyncHandler(async (req, res) => {
-  const { challengeName, description, days, Tags, isPublic } = req.body;
+  const { challengeName, description, days, tags, isPublic } = req.body;
   const { id } = req.params; // Challenge ID from the URL
 
-  if (!challengeName && !description && !days && !Tags && !isPublic) {
+  if (!challengeName && !description && !days && !tags && !isPublic) {
     return res
       .status(400)
       .json({ error: "At least one field is required to update." });
@@ -150,12 +161,10 @@ const updateChallenge = asyncHandler(async (req, res) => {
     if (days) {
       challenge.endDate = await calculateEndDate(days);
     }
-    const updatedTagIds = await createOrUpdateTags(Tags || [], challenge);
+    const updatedTagIds = await createOrUpdateTags(tags || [], challenge);
 
-    challenge.Tags = updatedTagIds;
+    challenge.tags = updatedTagIds;
     const updatedChallenge = await challenge.save();
-
-    console.log("updatedChallenge", updatedChallenge.Tags);
 
     await removeUnlinkedTags();
 
@@ -214,6 +223,7 @@ const getAllUserChallenges = asyncHandler(async (req, res) => {
       .limit(limit)
       .sort({ createdAt: -1 })
       .populate("challengeOwner")
+
       .populate("hashtags");
 
     if (!challenges) {
@@ -257,8 +267,8 @@ const getAllChallenges = asyncHandler(async (req, res) => {
 
       {
         $lookup: {
-          from: "tags",
-          localField: "hashtags",
+          from: "Tag",
+          localField: "tags",
           foreignField: "_id",
           as: "allChallengeHashtags",
         },
@@ -293,7 +303,6 @@ const getAllChallenges = asyncHandler(async (req, res) => {
       },
     ];
     const result = await Challenge.aggregate(pipeline);
-    console.log(result);
 
     const allChallenges = result[0].challenges;
     const total =

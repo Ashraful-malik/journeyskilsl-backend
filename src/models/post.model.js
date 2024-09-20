@@ -29,10 +29,6 @@ const postSchema = new Schema(
       default: 0,
     },
 
-    description: {
-      type: String,
-    },
-
     link: {
       type: String,
     },
