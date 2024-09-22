@@ -12,7 +12,7 @@ const handleViewEvent = asyncHandler(async (req, res) => {
   if (!userId) {
     throw new ApiError(400, "user id is required");
   }
-  const onModel = contentType === "post" ? "Post" : "Challenge";
+  const onModel = contentType === "Post" ? "Post" : "Challenge";
 
   //check if the user already viewed the post
   const alreadyViewed = await View.findOne({
@@ -31,7 +31,7 @@ const handleViewEvent = asyncHandler(async (req, res) => {
     await newView.save();
     //checking which view contentType we get from use
 
-    const Model = contentType === "post" ? Post : Challenge;
+    const Model = contentType === "Post" ? Post : Challenge;
 
     await Model.findByIdAndUpdate(id, { $inc: { viewCount: 1 } });
 

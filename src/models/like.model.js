@@ -9,13 +9,13 @@ const likeSchema = new Schema(
       index: true,
     },
 
-    itemId: {
+    targetId: {
       type: Schema.Types.ObjectId,
       required: true,
       index: true,
     },
 
-    itemType: {
+    targetType: {
       type: String,
       enum: ["Post", "Challenge"],
       required: true,

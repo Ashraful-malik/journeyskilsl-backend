@@ -29,6 +29,11 @@ const postSchema = new Schema(
       default: 0,
     },
 
+    likeCount: {
+      type: Number,
+      default: 0,
+    },
+
     link: {
       type: String,
     },
