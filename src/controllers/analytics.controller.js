@@ -4,7 +4,7 @@ import { ApiError } from "../utils/apiError.js";
 import { Challenge } from "../models/createChallenge.model.js";
 import mongoose from "mongoose";
 
-const useChallengeAnalytics = asyncHandler(async (req, res) => {
+const userChallengeAnalytics = asyncHandler(async (req, res) => {
   const challengeId = req.params?.challengeId;
 
   const userId = req.user?._id;
@@ -55,4 +55,4 @@ const useChallengeAnalytics = asyncHandler(async (req, res) => {
   }
 });
 
-export { useChallengeAnalytics };
+export { userChallengeAnalytics };

@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   changeCurrentEmail,
   changeCurrentPassword,
+  getUserDate,
   loginUser,
   logoutUser,
   refreshAccessToken,
@@ -35,9 +36,9 @@ router.route("/login").post(loginUser);
 router.route("/logout").post(verifyJWT, logoutUser);
 router.route("/refresh-token").post(refreshAccessToken);
 router.route("/update-profile").post(verifyJWT, updateAccountDetails);
-router.route("/change-password", verifyJWT, changeCurrentPassword);
-router.route("/change-email-address", verifyJWT, changeCurrentEmail);
-
+router.route("/change-password").post(verifyJWT, changeCurrentPassword);
+router.route("/change-email-address").post(verifyJWT, changeCurrentEmail);
+router.route("/get-user-data").get(verifyJWT, getUserDate);
 router
   .route("/update-profile-image")
   .post(verifyJWT, upload.single("profileImage"), updateUserProfileImage);

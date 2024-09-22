@@ -223,6 +223,21 @@ const getCurrentUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, req.user, "Current user fetched successfully"));
 });
 
+const getUserDate = asyncHandler(async (req, res) => {
+  const userId = req.user?._id;
+  const user = User.findById(userId)
+    .populate("badges")
+    .select(
+      "-password -refreshToken -coverImagePublicId -profileImagePublicId"
+    );
+  if (!user) {
+    throw new ApiError(404, "user not found");
+  }
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "user fetch successfully"));
+});
+
 // change current password
 const changeCurrentPassword = asyncHandler(async (req, res) => {
   const { oldPassword, newPassword } = req.body;
@@ -238,7 +253,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(200, {}, "Password changed Successfully"));
+    .json(new ApiResponse(200, "Password changed Successfully"));
 });
 
 //change email address
@@ -378,4 +393,5 @@ export {
   updateUserProfileImage,
   updateCoverImage,
   changeCurrentEmail,
+  getUserDate,
 };
