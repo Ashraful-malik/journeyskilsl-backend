@@ -35,8 +35,9 @@ const getAllLikes = asyncHandler(async (req, res) => {
   const Model = targetType === "post" ? Post : Challenge;
 
   const target = await Model.findById(targetId);
+
   if (!target) {
-    throw new ApiError(404, "target not found");
+    throw new ApiError(404, "target post not found");
   }
 
   const likes = await Like.find({ targetId, targetType })
