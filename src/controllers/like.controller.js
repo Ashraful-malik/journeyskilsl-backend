@@ -2,7 +2,6 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { ApiError } from "../utils/apiError.js";
 import { Post } from "../models/post.model.js";
-import { User } from "../models/user.model.js";
 import { Like } from "../models/like.model.js";
 
 // toggle like and unlike
@@ -25,26 +24,15 @@ const toggleLike = asyncHandler(async (req, res) => {
   }
 });
 
-// get all like  counts
-const getAllLikes = asyncHandler(async (req, res) => {
-  const { targetType, targetId } = req.body;
-  const likes = await Like.find({ targetId, targetType });
-  if (!likes) {
-    throw new ApiError(404, "No likes found");
-  }
-
-  return res.status(200).json(new ApiResponse(200, { likes }));
-});
-
 // get all liked users
-const getAllLikesUsers = asyncHandler(async (req, res) => {
+const getAllLikes = asyncHandler(async (req, res) => {
   const { targetType, targetId } = req.body;
 
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
 
-  const Model = targetType === "Post" ? Post : Challenge;
+  const Model = targetType === "post" ? Post : Challenge;
 
   const target = await Model.findById(targetId);
   if (!target) {
@@ -52,8 +40,7 @@ const getAllLikesUsers = asyncHandler(async (req, res) => {
   }
 
   const likes = await Like.find({ targetId, targetType })
-    .populate("userId")
-    .select("-password -refreshToken -profileImage -profileImagePublicId")
+    .populate("userId", "fullName username profileImage")
     .skip(skip)
     .limit(limit);
 
@@ -70,4 +57,4 @@ const getAllLikesUsers = asyncHandler(async (req, res) => {
   );
 });
 
-export { toggleLike, getAllLikesUsers, getAllLikes };
+export { toggleLike, getAllLikes };

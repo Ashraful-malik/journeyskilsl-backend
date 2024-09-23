@@ -14,6 +14,10 @@ import {
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
+// like routes link
+import { getAllLikes, toggleLike } from "../controllers/like.controller.js";
+
+// comment routes
 const router = Router();
 
 router.route("/register").post(

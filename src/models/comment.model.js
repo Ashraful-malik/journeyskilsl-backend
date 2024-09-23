@@ -7,17 +7,9 @@ const commentSchema = new Schema(
       ref: "User",
       required: true,
     },
+    post: { type: Schema.Types.ObjectId, ref: "Post" },
 
-    itemId: {
-      type: Schema.Types.ObjectId,
-      required: true,
-    },
-
-    itemType: {
-      type: String,
-      enum: ["Challenge", "Post"],
-      required: true,
-    },
+    challenge: { type: Schema.Types.ObjectId, ref: "Challenge" },
 
     content: {
       type: String,
@@ -27,5 +19,11 @@ const commentSchema = new Schema(
 
   { timestamps: true }
 );
+
+// Pre-save hook to update `updatedAt` on comment update
+commentSchema.pre("save", function (next) {
+  this.updatedAt = Date.now();
+  next();
+});
 
 export const Comment = mongoose.model("Comment", commentSchema);

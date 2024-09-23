@@ -9,3 +9,5 @@ const router = Router();
 
 router.route("/views/:contentType/:id").post(verifyJWT, handleViewEvent);
 router.route("/views/:contentType/:id").get(verifyJWT, getViewCount);
+
+export default router;
