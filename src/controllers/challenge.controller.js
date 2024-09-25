@@ -2,7 +2,7 @@ import { Tag } from "../models/tag.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
-import { Challenge } from "../models/createChallenge.model.js";
+import { Challenge } from "../models/challenge.model.js";
 
 const calculateEndDate = async (days) => {
   const endDate = new Date();

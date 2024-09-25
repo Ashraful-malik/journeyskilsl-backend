@@ -1,5 +1,5 @@
 import { Badge } from "../models/badge.model.js";
-import { Challenge } from "../models/createChallenge.model.js";
+import { Challenge } from "../models/challenge.model.js";
 import { Post } from "../models/post.model.js";
 import { User } from "../models/user.model.js";
 import { ApiError } from "../utils/apiError.js";
@@ -27,24 +27,22 @@ const createPost = asyncHandler(async (req, res) => {
 
   try {
     // Parallelize image compression and uploading
-    let imageUploadPromise = null;
+    let imageUrl = null;
+    let imagePublicId = null;
 
     if (req.file) {
-      const imagePath = req.file.path;
-      const outputFilePath = `./public/temp/compressed_${req.file.filename}`;
-
-      // Compress and upload in parallel
-      imageUploadPromise = compressImage(imagePath, outputFilePath)
-        .then((compressImageLocalPath) => {
-          if (!compressImageLocalPath) {
-            throw new ApiError(400, "Error while compressing image.");
-          }
-
-          return uploadOnCloudinary(compressImageLocalPath, "post_Images");
-        })
-        .catch((error) => {
-          throw new ApiError(400, error, "Error in image processing.");
-        });
+      const imageLocalPath = req.file.path;
+      const uploadedImage = await uploadOnCloudinary(
+        imageLocalPath,
+        "profile_Image"
+      );
+      if (!uploadedImage) {
+        deleteTemporaryFile(imageLocalPath);
+        throw new ApiError(500, "Error while uploading image to Cloudinary.");
+      }
+      imageUrl = uploadedImage.url;
+      imagePublicId = uploadedImage.publicId;
+      // deleteTemporaryFile(imageLocalPath);
     }
 
     // Fetch challenge and user in parallel
@@ -62,17 +60,6 @@ const createPost = asyncHandler(async (req, res) => {
     // If the challenge is already completed
     if (challenge.isCompleted) {
       return res.status(400).json({ message: "Challenge already completed" });
-    }
-
-    // Await image upload if necessary
-    let imageUrl = null;
-    let imagePublicId = null;
-
-    if (req.file && imageUploadPromise) {
-      deleteTemporaryFile(req.file.path);
-      const uploadedImage = await imageUploadPromise;
-      imageUrl = uploadedImage?.url;
-      imagePublicId = uploadedImage?.publicId;
     }
 
     // Create a new post
@@ -147,10 +134,7 @@ const createPost = asyncHandler(async (req, res) => {
     }
 
     // Save challenge and post in parallel
-    const [savedPost, savedChallenge] = await Promise.all([
-      savedPostPromise,
-      challenge.save(),
-    ]);
+    const [savedPost] = await Promise.all([savedPostPromise, challenge.save()]);
 
     const responsePost = {
       _id: savedPost._id,

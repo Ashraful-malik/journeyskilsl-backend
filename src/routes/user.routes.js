@@ -14,9 +14,6 @@ import {
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
-// like routes link
-import { getAllLikes, toggleLike } from "../controllers/like.controller.js";
-
 // comment routes
 const router = Router();
 
@@ -43,6 +40,7 @@ router.route("/update-profile").post(verifyJWT, updateAccountDetails);
 router.route("/change-password").post(verifyJWT, changeCurrentPassword);
 router.route("/change-email-address").post(verifyJWT, changeCurrentEmail);
 router.route("/get-user-data").get(verifyJWT, getUserDate);
+
 router
   .route("/update-profile-image")
   .post(verifyJWT, upload.single("profileImage"), updateUserProfileImage);

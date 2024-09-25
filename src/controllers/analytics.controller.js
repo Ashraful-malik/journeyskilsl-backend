@@ -1,12 +1,11 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { ApiError } from "../utils/apiError.js";
-import { Challenge } from "../models/createChallenge.model.js";
+import { Challenge } from "../models/challenge.model.js";
 import mongoose from "mongoose";
 
 const userChallengeAnalytics = asyncHandler(async (req, res) => {
   const challengeId = req.params?.challengeId;
-
   const userId = req.user?._id;
 
   if (!challengeId) {

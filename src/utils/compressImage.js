@@ -13,3 +13,6 @@ const compressImage = async (imagePath, outputFilePath) => {
 };
 
 export { compressImage };
+
+// we can use this code to compress image
+// const outputFilePath = `./public/temp/compressed_${req.file.filename}`;

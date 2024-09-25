@@ -7,6 +7,7 @@ const commentSchema = new Schema(
       ref: "User",
       required: true,
     },
+
     post: { type: Schema.Types.ObjectId, ref: "Post" },
 
     challenge: { type: Schema.Types.ObjectId, ref: "Challenge" },

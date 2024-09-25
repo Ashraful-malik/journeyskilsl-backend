@@ -2,14 +2,19 @@ import mongoose, { Schema } from "mongoose";
 
 const saveSchema = new Schema(
   {
-    post: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Post",
-    },
-    challenge: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Challenge",
-    },
+    posts: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Post",
+      },
+    ],
+
+    challenges: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Challenge",
+      },
+    ],
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -17,5 +22,5 @@ const saveSchema = new Schema(
   },
   { timestamps: true }
 );
-
+saveSchema.index({ user: 1, challenge: 1, post: 1 }, { unique: true });
 export const Save = mongoose.model("Save", saveSchema);

@@ -6,13 +6,12 @@ const likeSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
     },
 
     targetId: {
       type: Schema.Types.ObjectId,
       required: true,
-      index: true,
+      refPath: "targetType",
     },
 
     targetType: {
@@ -30,6 +29,6 @@ const likeSchema = new Schema(
   { timestamps: true }
 );
 
-likeSchema.index({ userId: 1, itemId: 1, itemType: 1 }, { unique: true });
+likeSchema.index({ userId: 1, targetType: 1, targetId: 1 }, { unique: true });
 
 export const Like = mongoose.model("like", likeSchema);

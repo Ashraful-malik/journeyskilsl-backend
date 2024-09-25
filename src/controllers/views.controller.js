@@ -12,7 +12,7 @@ const handleViewEvent = asyncHandler(async (req, res) => {
   if (!userId) {
     throw new ApiError(400, "user id is required");
   }
-  const onModel = contentType === "Post" ? "Post" : "Challenge";
+  const onModel = contentType === "Post" ? "Post" : "Challenge"; //if error occurs come here
 
   //check if the user already viewed the post
   const alreadyViewed = await View.findOne({

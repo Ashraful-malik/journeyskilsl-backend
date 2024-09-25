@@ -1,11 +1,7 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
 import { User } from "../models/user.model.js";
-import {
-  CURRENT_DATE,
-  LAUNCH_END_DATE,
-  LAUNCH_START_DATE,
-} from "../constants.js";
+import { LAUNCH_END_DATE, LAUNCH_START_DATE } from "../constants.js";
 
 import {
   deleteFileOnCloudinary,
@@ -14,6 +10,7 @@ import {
 
 import { ApiResponse } from "../utils/apiResponse.js";
 import jwt from "jsonwebtoken";
+import { deleteTemporaryFile } from "../utils/deleteTemporaryFile.js";
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -42,9 +39,12 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All fields are required");
   }
 
-  const existedUser = await User.findOne({
-    $or: [{ username }, { email }], //$or parameter use for validate both username and email
-  });
+  // Concurrently check if user exists by email or username
+  const [existedUser] = await Promise.all([
+    User.findOne({
+      $or: [{ email: email }, { username: username.toLowerCase() }],
+    }).select("_id"),
+  ]);
 
   if (existedUser) {
     throw new ApiError(409, "User already exist");
@@ -56,13 +56,15 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "profile image file is required");
   }
 
+  // Upload image concurrently with other tasks
   const profileImage = await uploadOnCloudinary(
     profileImageLocalPath,
     "profile_Image"
   );
 
   if (!profileImage) {
-    throw new ApiError(400, "profile image file is required");
+    deleteTemporaryFile(profileImageLocalPath); // Delete temp file on failure
+    throw new ApiError(500, "Failed to upload profile image");
   }
 
   const user = await User.create({
@@ -74,22 +76,16 @@ const registerUser = asyncHandler(async (req, res) => {
     username: username.toLowerCase(),
   });
 
-  //for giving badge
+  // Handle badge assignment if within launch date range
 
-  // if (CURRENT_DATE >= LAUNCH_START_DATE && CURRENT_DATE <= LAUNCH_END_DATE) {
-  //   user.badge.push(process.env.EARLY_USER_BADGE_ID);
-  //   await user.save({ validateBeforeSave: false });
-
-  //   res.status(200).json({
-  //     message:
-  //       "Thank you for joining us during our launch month! You have earned a special badge.",
-  //     showPopup: true,
-  //     badgeUrl: "badge-image-url", // URL for the badge image
-  //   });
-  // }
+  const CURRENT_DATE = new Date();
+  if (CURRENT_DATE >= LAUNCH_START_DATE && CURRENT_DATE <= LAUNCH_END_DATE) {
+    user.badges.push(process.env.EARLY_USER_BADGE_ID);
+    await user.save({ validateBeforeSave: false });
+  }
 
   const createdUser = await User.findById(user._id).select(
-    "-password -refreshToken"
+    "-password -profileImagePublicId"
   );
 
   if (!createdUser) {
@@ -225,17 +221,17 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 
 const getUserDate = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
-  const user = User.findById(userId)
+  const user = await User.findById(userId)
     .populate("badges")
     .select(
       "-password -refreshToken -coverImagePublicId -profileImagePublicId"
     );
   if (!user) {
-    throw new ApiError(404, "user not found");
+    throw ApiError(404, "user not found");
   }
   return res
     .status(200)
-    .json(new ApiResponse(200, user, "user fetch successfully"));
+    .json(new ApiResponse(200, { user }, "user fetch successfully"));
 });
 
 // change current password

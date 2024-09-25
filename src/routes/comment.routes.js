@@ -4,6 +4,7 @@ import {
   createComment,
   deleteComment,
   getAllComments,
+  updateComment,
 } from "../controllers/comment.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 

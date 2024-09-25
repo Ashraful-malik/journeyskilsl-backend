@@ -3,12 +3,15 @@ import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { Comment } from "../models/comment.model.js";
 import { Post } from "../models/post.model.js";
-import { Challenge } from "../models/createChallenge.model.js";
+import { Challenge } from "../models/challenge.model.js";
 
-const createNewComment = asyncHandler(async (req, res) => {
+const createComment = asyncHandler(async (req, res) => {
   const { contentType, id } = req.params;
+  console.log(contentType, id);
 
   const { content } = req.body;
+  console.log(content);
+
   const userId = req.user?._id;
 
   if (!id) {
@@ -22,6 +25,7 @@ const createNewComment = asyncHandler(async (req, res) => {
   let comment;
   if (contentType === "post") {
     const post = await Post.findById(id);
+
     if (!post) {
       throw new ApiError(404, "post not found");
     }
@@ -35,11 +39,15 @@ const createNewComment = asyncHandler(async (req, res) => {
   } else {
     res.status(201).json(new ApiResponse(201, comment, "comment created"));
   }
+
+  await comment.save();
+  return res.status(201).json(new ApiResponse(201, comment, "comment created"));
 });
 
 const updateComment = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
   const { content } = req.body;
+
   const userId = req.user?._id;
 
   if (!content) {
@@ -47,12 +55,13 @@ const updateComment = asyncHandler(async (req, res) => {
   }
 
   const comment = await Comment.findById(commentId);
+  console.log(comment.commentBy.toString(), userId);
 
   if (!comment) {
     throw new ApiError(404, "comment not found");
   }
 
-  if (comment.commentBy.toString() !== userId) {
+  if (comment.commentBy.toString() !== userId.toString()) {
     throw new ApiError(401, "unauthorized");
   }
 
@@ -72,15 +81,18 @@ const deleteComment = asyncHandler(async (req, res) => {
     throw new ApiError(404, "comment not found");
   }
 
-  if (comment.commentBy.toString() !== userId) {
+  if (comment.commentBy.toString() !== userId.toString()) {
     throw new ApiError(401, "unauthorized");
   }
-  await comment.remove();
-  return res.status(200).json(new ApiResponse(200, "comment deleted"));
+  const deletedComment = await Comment.deleteOne({ _id: commentId });
+  return res
+    .status(200)
+    .json(new ApiResponse(200, deletedComment, "comment deleted"));
 });
 
 const getAllComments = asyncHandler(async (req, res) => {
   const { contentType, id } = req.params;
+  //id means post id or challenge id for finding all post and challenge comments
 
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
@@ -89,14 +101,14 @@ const getAllComments = asyncHandler(async (req, res) => {
   let comment;
   if (contentType === "post") {
     comment = await Comment.find({ post: id })
-      .populate("user", "fullName username profileImage")
+      .populate("commentBy", "fullName username profileImage")
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 });
   } else if (contentType === "challenge") {
     comment = await comment
       .find({ challenge: id })
-      .populate("user ", "fullName username profileImage")
+      .populate("commentBy", "fullName username profileImage")
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 });
@@ -107,10 +119,17 @@ const getAllComments = asyncHandler(async (req, res) => {
     contentType === "post" ? { post: id } : { challenge: id }
   );
   const totalPage = Math.ceil(totalComment / limit);
+  console.log(totalComment, totalPage);
 
   return res
     .status(200)
-    .json(new ApiResponse(200, comment, totalComment, totalPage));
+    .json(
+      new ApiResponse(
+        200,
+        { comment, totalComment, totalPage },
+        "comment fetched successfully"
+      )
+    );
 });
 
-export { createNewComment, updateComment, deleteComment, getAllComments };
+export { createComment, updateComment, deleteComment, getAllComments };
