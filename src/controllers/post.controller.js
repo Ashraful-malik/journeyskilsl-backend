@@ -5,13 +5,20 @@ import { User } from "../models/user.model.js";
 import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+
+import {
+  startSession,
+  commitSession,
+  abortSession,
+} from "../utils/sessionUtils.js";
+
 import {
   uploadOnCloudinary,
   deleteFileOnCloudinary,
 } from "../utils/cloudinary.js";
-import { compressImage } from "../utils/compressImage.js";
 import { deleteTemporaryFile } from "../utils/deleteTemporaryFile.js";
 
+//create new post
 const createPost = asyncHandler(async (req, res) => {
   const { challengeId } = req.params;
   const { text, link } = req.body;
@@ -25,6 +32,8 @@ const createPost = asyncHandler(async (req, res) => {
     throw new ApiError(400, "challenge id is required");
   }
 
+  const session = await startSession(); // Start session
+
   try {
     // Parallelize image compression and uploading
     let imageUrl = null;
@@ -36,21 +45,20 @@ const createPost = asyncHandler(async (req, res) => {
         imageLocalPath,
         "profile_Image"
       );
+
       if (!uploadedImage) {
         deleteTemporaryFile(imageLocalPath);
         throw new ApiError(500, "Error while uploading image to Cloudinary.");
       }
       imageUrl = uploadedImage.url;
       imagePublicId = uploadedImage.publicId;
-      // deleteTemporaryFile(imageLocalPath);
+      deleteTemporaryFile(imageLocalPath);
     }
 
     // Fetch challenge and user in parallel
     const [user, challenge] = await Promise.all([
-      User.findById(userId).select(
-        "-email -password -refreshToken -profileImage -profileImagePublicId"
-      ),
-      Challenge.findById(challengeId),
+      User.findById(userId).session(session),
+      Challenge.findById(challengeId).session(session),
     ]);
 
     if (!user || !challenge) {
@@ -73,7 +81,7 @@ const createPost = asyncHandler(async (req, res) => {
     });
 
     // Save post and log task in challenge
-    const savedPostPromise = newPost.save();
+    // const savedPostPromise = newPost.save();
 
     challenge.taskLogs.push({
       taskId: newPost._id,
@@ -111,13 +119,14 @@ const createPost = asyncHandler(async (req, res) => {
     //Add badge if completed streak days
 
     const streakMilestones = [3, 7, 14, 21, 30, 60, 90]; // Predefined streak milestones
-
     if (streakMilestones.includes(challenge.currentStreak)) {
-      const badge = await Badge.findOne({ streak: challenge.currentStreak });
+      const badge = await Badge.findOne({
+        streak: challenge.currentStreak,
+      }).session(session);
 
       if (badge && !user.badges.includes(badge._id)) {
         user.badges.push(badge._id);
-        await user.save();
+        await user.save({ session });
       }
     }
 
@@ -134,7 +143,12 @@ const createPost = asyncHandler(async (req, res) => {
     }
 
     // Save challenge and post in parallel
-    const [savedPost] = await Promise.all([savedPostPromise, challenge.save()]);
+    const [savedPost] = await Promise.all([
+      newPost.save({ session }),
+      challenge.save({ session }),
+    ]);
+
+    await commitSession(session);
 
     const responsePost = {
       _id: savedPost._id,
@@ -144,6 +158,7 @@ const createPost = asyncHandler(async (req, res) => {
       link: savedPost.link,
       challengeId: savedPost.challengeId,
       createdAt: savedPost.createdAt,
+      updatedAt: savedPost.updatedAt,
     };
 
     return res
@@ -156,19 +171,21 @@ const createPost = asyncHandler(async (req, res) => {
         )
       );
   } catch (error) {
+    await abortSession(session);
     console.error(error);
-    throw new ApiError(400, error, "error in post creation");
+    throw new ApiError(400, error.message || "error in post creation");
   }
 });
 
 //edit post
 const editPost = asyncHandler(async (req, res) => {
   const { text, link } = req.body;
-  const postId = req.params.post;
+  const { postId } = req.params;
 
   if (!postId) {
     throw new ApiError(400, "post id is required");
   }
+
   if (!text && !link != null && !req.file) {
     throw new ApiError(400, "text, link or image is required");
   }
@@ -182,46 +199,32 @@ const editPost = asyncHandler(async (req, res) => {
     await deleteFileOnCloudinary(post.imagePublicId);
   }
 
-  let image = null;
+  let imageUrl = null;
+  let imagePublicId = null;
 
   if (req.file) {
-    const imagePath = req.file.path;
-    const outputFilePath = `./public/temp/compressed_${req.file.filename}`;
-
-    //compress image
-    const compressImageLocalPath = await compressImage(
-      imagePath,
-      outputFilePath
-    );
-
-    if (!compressImageLocalPath) {
-      throw new ApiError(
-        400,
-        "Error while compressing image. Please try again with a valid image file."
-      );
-    }
-
+    const imageLocalPath = req.file.path;
     const uploadedImage = await uploadOnCloudinary(
-      compressImageLocalPath,
-      "post_Images"
+      imageLocalPath,
+      "profile_Image"
     );
 
     if (!uploadedImage) {
-      deleteTemporaryFile(req.file.path);
-      throw new ApiError(400, "Error while uploading image on cloudinary");
+      deleteTemporaryFile(imageLocalPath);
+      throw new ApiError(500, "Error while uploading image to Cloudinary.");
     }
+    imageUrl = uploadedImage.url;
+    imagePublicId = uploadedImage.publicId;
 
-    deleteTemporaryFile(req.file.path);
-
-    image = uploadedImage;
+    deleteTemporaryFile(imageLocalPath);
   }
 
   // If the user is providing a new text value, update the post's text field
   // otherwise, keep the existing text value
   post.text = text ? text : post.text;
   post.link = link ? link : post.link;
-  post.image = image ? image.url : post.image;
-  post.imagePublicId = image ? image.publicId : post.imagePublicId;
+  post.image = imageUrl ? imageUrl : post.image;
+  post.imagePublicId = imagePublicId ? imagePublicId : post.imagePublicId;
 
   const updatedPost = await post.save();
   return res
@@ -229,25 +232,25 @@ const editPost = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, updatedPost, "post updated successfully"));
 });
 
+//delete post
 const deletePost = asyncHandler(async (req, res) => {
-  const { id } = req.params;
+  const { postId } = req.params;
 
-  if (!id) {
+  if (!postId) {
     throw new ApiError(400, "post id is required");
   }
 
-  const post = await Post.findById(id);
+  const post = await Post.findById(postId);
 
   if (!post) {
     throw new ApiError(404, "post not found");
   }
 
-  const deletePost = await Post.deleteOne({ _id: id });
+  const deletePost = await Post.deleteOne({ _id: postId });
 
   if (deletePost) {
     await deleteFileOnCloudinary(post.imagePublicId);
   }
-
   if (!deletePost) {
     throw new ApiError(400, "failed to delete post");
   }
@@ -257,4 +260,70 @@ const deletePost = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, "post deleted successfully"));
 });
 
-export { createPost, editPost, deletePost };
+const getAllUserPosts = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+  const userId = req.user?._id;
+
+  try {
+    const posts = await Post.find({ owner: userId })
+      .select("-imagePublicId")
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 })
+      .populate("owner", "fullName username profileImage")
+      .populate("challengeId", "challengeName");
+
+    const totalPost = await Post.countDocuments({ owner: userId });
+    const totalPage = Math.ceil(totalPost / limit);
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { posts, totalPost, totalPage },
+          "posts fetched successfully"
+        )
+      );
+  } catch (error) {
+    console.log(error);
+    throw new ApiError(400, error, "Failed to get posts. Please try again.");
+  }
+});
+
+const getPublicFeed = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  // Fetch public posts and challenges
+  const [posts, challenges] = await Promise.all([
+    Post.find()
+      .select("-imagePublicId")
+      .sort("-createdAt")
+      .skip(skip)
+      .limit(limit)
+      .populate("owner", "fullName username profileImage"),
+    Challenge.find({ isPublic: true })
+      .sort("-createdAt")
+      .skip(skip)
+      .limit(limit)
+      .populate("challengeOwner", "fullName username profileImage "),
+  ]);
+
+  const totalItems = posts.length + challenges.length;
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        { posts, challenges, totalItems },
+        "Feed fetched successfully"
+      )
+    );
+});
+
+export { createPost, editPost, deletePost, getAllUserPosts, getPublicFeed };

@@ -2,98 +2,104 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
 import { User } from "../models/user.model.js";
 import { LAUNCH_END_DATE, LAUNCH_START_DATE } from "../constants.js";
-
 import {
   deleteFileOnCloudinary,
   uploadOnCloudinary,
 } from "../utils/cloudinary.js";
-
 import { ApiResponse } from "../utils/apiResponse.js";
 import jwt from "jsonwebtoken";
-import { deleteTemporaryFile } from "../utils/deleteTemporaryFile.js";
-
-const generateAccessAndRefreshToken = async (userId) => {
-  try {
-    const user = await User.findById(userId);
-    const accessToken = user.generateAccessToken();
-    const refreshToken = user.generateRefreshToken();
-
-    user.refreshToken = refreshToken;
-    await user.save({ validateBeforeSave: false });
-
-    return { refreshToken, accessToken };
-  } catch (error) {
-    throw new ApiError(
-      500,
-      "Something went wrong while generating and refresh token"
-    );
-  }
-};
+import { sendEmail } from "../utils/sendEmail.js";
+import { generateAccessAndRefreshToken } from "../utils/jwtToken.js";
+import { generateNewVerificationCode } from "../utils/generateNewVerificationCode.controller.js";
+import { Verification } from "../models/verification.model.js";
+import {
+  abortSession,
+  commitSession,
+  startSession,
+} from "../utils/sessionUtils.js";
 
 const registerUser = asyncHandler(async (req, res) => {
   const { fullName, email, password, username } = req.body;
-
   if (
     [fullName, email, password, username].some((field) => field?.trim() === "")
   ) {
     throw new ApiError(400, "All fields are required");
   }
-
+  const session = startSession();
   // Concurrently check if user exists by email or username
-  const [existedUser] = await Promise.all([
-    User.findOne({
+  try {
+    const existedUser = await User.findOne({
       $or: [{ email: email }, { username: username.toLowerCase() }],
-    }).select("_id"),
-  ]);
+    })
+      .select("_id")
+      .session(session);
 
-  if (existedUser) {
-    throw new ApiError(409, "User already exist");
+    if (existedUser) {
+      throw new ApiError(409, "User already exist");
+    }
+
+    const user = await User.create(
+      [
+        {
+          fullName,
+          email,
+          password,
+          username: username.toLowerCase(),
+        },
+      ],
+      { session }
+    );
+    // Handle badge assignment if within launch date range
+    const CURRENT_DATE = new Date();
+    if (CURRENT_DATE >= LAUNCH_START_DATE && CURRENT_DATE <= LAUNCH_END_DATE) {
+      user[0].badges.push(process.env.EARLY_USER_BADGE_ID);
+      await user[0].save({ session, validateBeforeSave: false });
+    }
+
+    // Handle verification code logic
+    const existingCode = await Verification.findById(user[0].id).session(
+      session
+    );
+    const verificationCode =
+      existingCode && existingCode.verificationExpires > Date.now()
+        ? existingCode.code
+        : await generateNewVerificationCode(user[0]._id, session);
+
+    // Send verification email
+    await sendEmail({
+      to: user[0].email,
+      name: user[0].fullName,
+      templateId: 1,
+      params: {
+        verification_code: verificationCode, // Pass the generated verification code
+        name: user[0].fullName.split(" ")[0], // Example of another parameter
+      },
+    });
+    await commitSession(session);
+
+    const createdUser = await User.findById(user._id).select(
+      "-password -profileImagePublicId"
+    );
+
+    if (!createdUser) {
+      throw new ApiError(500, "Something went wrong while registering user");
+    }
+
+    return res
+      .status(201)
+      .json(
+        new ApiResponse(
+          201,
+          createdUser,
+          "User registered successfully. A verification code has been sent to your email."
+        )
+      );
+  } catch (error) {
+    await abortSession(session); // Roll back changes if any error occurs
+    throw new ApiError(400, error.message || "error in post creation");
+  } finally {
+    await session.endSession(); // End the session
   }
-
-  const profileImageLocalPath = req.files?.profileImage[0]?.path;
-
-  if (!profileImageLocalPath) {
-    throw new ApiError(400, "profile image file is required");
-  }
-
-  // Upload image concurrently with other tasks
-  const profileImage = await uploadOnCloudinary(
-    profileImageLocalPath,
-    "profile_Image"
-  );
-
-  if (!profileImage) {
-    deleteTemporaryFile(profileImageLocalPath); // Delete temp file on failure
-    throw new ApiError(500, "Failed to upload profile image");
-  }
-
-  const user = await User.create({
-    fullName,
-    profileImage: profileImage.url,
-    profileImagePublicId: profileImage.publicId,
-    email,
-    password,
-    username: username.toLowerCase(),
-  });
-
-  // Handle badge assignment if within launch date range
-
-  const CURRENT_DATE = new Date();
-  if (CURRENT_DATE >= LAUNCH_START_DATE && CURRENT_DATE <= LAUNCH_END_DATE) {
-    user.badges.push(process.env.EARLY_USER_BADGE_ID);
-    await user.save({ validateBeforeSave: false });
-  }
-
-  const createdUser = await User.findById(user._id).select(
-    "-password -profileImagePublicId"
-  );
-
-  if (!createdUser) {
-    throw new ApiError(500, "Something went wrong while registering user");
-  }
-  return res
-    .status(201)
-    .json(new ApiResponse(200, createdUser, "user registered successfully"));
 });
 
 // login user
@@ -117,9 +123,43 @@ const loginUser = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Invalid password");
   }
 
+  if (!user.isVerified) {
+    const existingCode = await Verification.findById(user.id);
+    if (!existingCode && !existingCode.verificationExpires > Date.now()) {
+      const verificationCode = await generateNewVerificationCode(user._id);
+      await sendEmail({
+        to: user.email,
+        name: user.fullName,
+        templateId: 1,
+        params: {
+          verification_code: verificationCode, // Pass the generated verification code
+          name: user.fullName.split(" ")[0], // Example of another parameter
+        },
+      });
+      return res
+        .status(200)
+        .json(
+          new ApiResponse(
+            200,
+            "You are not verified. A verification code has been sent to your email. Please enter the code to complete the verification process."
+          )
+        );
+    } else {
+      return res
+        .status(400)
+        .json(
+          new ApiResponse(
+            400,
+            "Your current verification code is still valid. Please use it or wait until it expires to generate a new one."
+          )
+        );
+    }
+  }
+
   const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
     user._id
   );
+
   const options = {
     httpOnly: true,
     secure: true,

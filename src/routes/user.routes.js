@@ -17,22 +17,8 @@ import { verifyJWT } from "../middlewares/auth.middleware.js";
 // comment routes
 const router = Router();
 
-router.route("/register").post(
-  upload.fields([
-    {
-      name: "profileImage",
-      maxCount: 1,
-    },
-    {
-      name: "coverImage",
-      maxCount: 1,
-    },
-  ]),
-  registerUser
-);
-
 router.route("/login").post(loginUser);
-
+router.route("/register").post(registerUser);
 //secured routes
 router.route("/logout").post(verifyJWT, logoutUser);
 router.route("/refresh-token").post(refreshAccessToken);
@@ -49,4 +35,15 @@ router
   .route("/update-cover-image")
   .post(verifyJWT, upload.single("coverImage"), updateCoverImage);
 
+//verification code routes
+import { requestNewVerificationCode } from "../controllers/requestNewVerificationCode.controller.js";
+import { verificationLimiter } from "../middlewares/rateLimit.middleware.js";
+import { verifyEmail } from "../controllers/emailVerification.js";
+
+router
+  .route("/send-verification-code")
+  .post(verificationLimiter, requestNewVerificationCode);
+
+//email verification
+router.route("/verify-email").post(verifyEmail);
 export default router;

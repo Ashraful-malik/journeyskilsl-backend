@@ -25,7 +25,11 @@ const toggleLike = asyncHandler(async (req, res) => {
     const existingLike = await Like.findOne({ userId, targetId, targetType });
     if (existingLike) {
       await Like.findOneAndDelete({ _id: existingLike._id }, { session });
-      Model.findByIdAndUpdate(targetId, { $inc: { likes: -1 } }, { session });
+      Model.findByIdAndUpdate(
+        targetId,
+        { $inc: { likeCount: -1 } },
+        { session }
+      );
 
       await session.commitTransaction();
       session.endSession();
@@ -42,7 +46,7 @@ const toggleLike = asyncHandler(async (req, res) => {
 
       await Model.findByIdAndUpdate(
         targetId,
-        { $inc: { likes: 1 } },
+        { $inc: { likeCount: 1 } },
         {
           session,
         }
@@ -81,7 +85,8 @@ const getAllLikes = asyncHandler(async (req, res) => {
   }
 
   const likesPromises = await Like.find({ targetId, targetType })
-    .populate("targetId")
+    .populate("userId", "fullName username profileImage")
+    .populate("targetId", "-imagePublicId")
     .skip(skip)
     .limit(limit);
 

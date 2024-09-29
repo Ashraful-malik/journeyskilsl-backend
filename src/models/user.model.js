@@ -52,6 +52,7 @@ const userSchema = new Schema(
       type: Date,
       trim: true,
     },
+    isVerified: { type: Boolean, default: false },
 
     location: {
       type: String,
