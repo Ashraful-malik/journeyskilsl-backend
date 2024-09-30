@@ -6,8 +6,9 @@ const VerificationSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
-  verificationCode: { type: String, index: 1 },
-  verificationExpires: { type: Date, index: 1 },
+  verificationCode: { type: Number, index: 1 },
+  verificationExpires: { type: Date },
+
   createdAt: {
     type: Date,
     default: Date.now,

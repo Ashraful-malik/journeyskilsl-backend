@@ -41,7 +41,7 @@ import { verificationLimiter } from "../middlewares/rateLimit.middleware.js";
 import { verifyEmail } from "../controllers/emailVerification.js";
 
 router
-  .route("/send-verification-code")
+  .route("/generate-new-verification-code")
   .post(verificationLimiter, requestNewVerificationCode);
 
 //email verification

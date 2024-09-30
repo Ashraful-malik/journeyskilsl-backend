@@ -8,7 +8,7 @@ const expireVerificationCode = (minutes = 10) => {
 };
 const generateNewVerificationCode = async (userId) => {
   try {
-    await Verification.deleteMany(userId);
+    const deleted = await Verification.deleteMany({ _id: userId });
     const verificationCode = generateVerificationCode();
     const verificationExpires = expireVerificationCode(10);
 

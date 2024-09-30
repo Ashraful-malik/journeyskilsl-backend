@@ -12,11 +12,6 @@ import { sendEmail } from "../utils/sendEmail.js";
 import { generateAccessAndRefreshToken } from "../utils/jwtToken.js";
 import { generateNewVerificationCode } from "../utils/generateNewVerificationCode.controller.js";
 import { Verification } from "../models/verification.model.js";
-import {
-  abortSession,
-  commitSession,
-  startSession,
-} from "../utils/sessionUtils.js";
 
 const registerUser = asyncHandler(async (req, res) => {
   const { fullName, email, password, username } = req.body;
@@ -25,57 +20,53 @@ const registerUser = asyncHandler(async (req, res) => {
   ) {
     throw new ApiError(400, "All fields are required");
   }
-  const session = startSession();
+
   // Concurrently check if user exists by email or username
   try {
     const existedUser = await User.findOne({
       $or: [{ email: email }, { username: username.toLowerCase() }],
-    })
-      .select("_id")
-      .session(session);
+    }).select("_id");
 
     if (existedUser) {
-      throw new ApiError(409, "User already exist");
+      throw new ApiError(
+        409,
+        existedUser.email === email
+          ? `Email address  is already in use`
+          : `Username  is already taken`
+      );
     }
 
-    const user = await User.create(
-      [
-        {
-          fullName,
-          email,
-          password,
-          username: username.toLowerCase(),
-        },
-      ],
-      { session }
-    );
+    const user = await User.create({
+      fullName,
+      email,
+      password,
+      username: username.toLowerCase(),
+    });
+
     // Handle badge assignment if within launch date range
     const CURRENT_DATE = new Date();
     if (CURRENT_DATE >= LAUNCH_START_DATE && CURRENT_DATE <= LAUNCH_END_DATE) {
-      user[0].badges.push(process.env.EARLY_USER_BADGE_ID);
-      await user[0].save({ session, validateBeforeSave: false });
+      user.badges.push(process.env.EARLY_USER_BADGE_ID);
+      await user.save({ validateBeforeSave: false });
     }
 
     // Handle verification code logic
-    const existingCode = await Verification.findById(user[0].id).session(
-      session
-    );
+    const existingCode = await Verification.findById(user.id);
     const verificationCode =
       existingCode && existingCode.verificationExpires > Date.now()
         ? existingCode.code
-        : await generateNewVerificationCode(user[0]._id, session);
+        : await generateNewVerificationCode(user._id);
 
     // Send verification email
     await sendEmail({
-      to: user[0].email,
-      name: user[0].fullName,
+      to: user.email,
+      name: user.fullName,
       templateId: 1,
       params: {
         verification_code: verificationCode, // Pass the generated verification code
-        name: user[0].fullName.split(" ")[0], // Example of another parameter
+        name: user.fullName.split(" ")[0], // Example of another parameter
       },
     });
-    await commitSession(session);
 
     const createdUser = await User.findById(user._id).select(
       "-password -profileImagePublicId"
@@ -95,10 +86,7 @@ const registerUser = asyncHandler(async (req, res) => {
         )
       );
   } catch (error) {
-    await abortSession(session); // Roll back changes if any error occurs
-    throw new ApiError(400, error.message || "error in post creation");
-  } finally {
-    await session.endSession(); // End the session
+    throw new ApiError(400, error || "error in post creation");
   }
 });
 
