@@ -8,8 +8,8 @@ import { Challenge } from "../models/challenge.model.js";
 const handleViewEvent = asyncHandler(async (req, res) => {
   const { id, contentType } = req.params;
   // id here is the id of the challenge or post for which we want to record a view.
-  const userId = req.user?._id;
 
+  const userId = req.user?._id;
   if (!userId) {
     throw new ApiError(400, "user id is required");
   }
@@ -62,7 +62,7 @@ const getViewCount = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(200, { viewCount }), "views fetch successfully");
+    .json(new ApiResponse(200, { viewCount }, "views fetch successfully"));
 });
 
 export { handleViewEvent, getViewCount };

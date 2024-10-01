@@ -2,19 +2,19 @@ import mongoose, { Schema } from "mongoose";
 
 const followingSchema = new Schema(
   {
-    userId: {
+    user: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
       index: true,
     },
-    followingId: {
+    following: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
       index: true,
     },
-    followedAt: {
+    followingAt: {
       type: Date,
       default: Date.now,
     },
@@ -25,6 +25,6 @@ const followingSchema = new Schema(
 );
 
 // Ensuring that a user cannot follow the same person more than once
-followingSchema.index({ userId: 1, followingId: 1 }, { unique: true });
+followingSchema.index({ user: 1, following: 1 }, { unique: true });
 
-module.exports = mongoose.model("Following", followingSchema);
+export const Following = mongoose.model("Following", followingSchema);

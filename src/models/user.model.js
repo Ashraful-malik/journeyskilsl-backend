@@ -57,6 +57,9 @@ const userSchema = new Schema(
     location: {
       type: String,
     },
+    followerCount: { type: Number, default: 0 },
+
+    followingCount: { type: Number, default: 0 },
 
     refreshToken: {
       type: String,

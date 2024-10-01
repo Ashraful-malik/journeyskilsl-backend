@@ -2,13 +2,13 @@ import mongoose, { Schema } from "mongoose";
 
 const followersSchema = new Schema(
   {
-    userId: {
+    user: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
       index: true,
     },
-    followerId: {
+    follower: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
@@ -23,6 +23,6 @@ const followersSchema = new Schema(
 );
 
 // Ensuring that the same person cannot follow a user more than once
-followersSchema.index({ userId: 1, followerId: 1 }, { unique: true });
+followerSchema.index({ user: 1, follower: 1 }, { unique: true });
 
-export const Followers = mongoose.model("Followers", followersSchema);
+export const Follower = mongoose.model("Follower", followersSchema);

@@ -23,9 +23,16 @@ const toggleLike = asyncHandler(async (req, res) => {
 
   try {
     const existingLike = await Like.findOne({ userId, targetId, targetType });
+    console.log("existingLike===>", existingLike);
+    //unlike
     if (existingLike) {
-      await Like.findOneAndDelete({ _id: existingLike._id }, { session });
-      Model.findByIdAndUpdate(
+      const deletedLike = await Like.findOneAndDelete(
+        { _id: existingLike._id },
+        { session }
+      );
+      console.log("deletedLike===>", deletedLike);
+
+      await Model.findByIdAndUpdate(
         targetId,
         { $inc: { likeCount: -1 } },
         { session }
@@ -64,7 +71,11 @@ const toggleLike = asyncHandler(async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    throw new ApiError(500, "An error occurred while toggling the like.");
+    throw new ApiError(
+      500,
+      "An error occurred while toggling the like.",
+      error
+    );
   }
 });
 
