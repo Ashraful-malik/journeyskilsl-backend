@@ -25,7 +25,7 @@ import like from "./routes/like.routes.js";
 import view from "./routes/view.routes.js";
 import save from "./routes/save.routes.js";
 import analytics from "./routes/analytics.routes.js";
-import followerFollowing from "./routes/followerFollowing.routes.js";
+import followFollowing from "./routes/followFollowing.routes.js";
 
 //routes declaration
 app.use("/api/v1/users", userroutes);
@@ -36,6 +36,6 @@ app.use("/api/v1/users", like);
 app.use("/api/v1/users", view);
 app.use("/api/v1/users", save);
 app.use("/api/v1/users", analytics);
-app.use("/api/v1/users", followerFollowing);
+app.use("/api/v1/users", followFollowing);
 
 export { app };

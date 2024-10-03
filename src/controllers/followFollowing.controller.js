@@ -1,74 +1,74 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
-import { Follower } from "../models/follower.model.js";
+import { ApiResponse } from "../utils/apiResponse.js";
 import mongoose from "mongoose";
-import { Following } from "../models/following.model.js";
 import { User } from "../models/user.model.js";
+import { Follower } from "../models/follower.model.js";
+import { Following } from "../models/following.model.js";
 
 const followUser = asyncHandler(async (req, res) => {
-  const followerId = req.user?.id; //The user who wants to follow
-  const followingId = req.params.userId; //the user to be followed
+  const userId = req.user?.id; //The user who wants to follow
+  const targetId = req.params.userId; //the user to be followed
 
-  if (!followingId) {
+  if (!targetId) {
     throw new ApiError(400, "following id is required");
   }
 
-  if (followerId.equal(followingId)) {
+  const followerId = new mongoose.Types.ObjectId(userId);
+  const followingId = new mongoose.Types.ObjectId(targetId);
+
+  console.log("followerId,followingId====>", followerId, followingId);
+
+  if (followerId === followingId) {
     throw new ApiError(400, "You cannot follow yourself");
   }
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  //   const session = await mongoose.startSession();
+  //   session.startTransaction();
 
   try {
-    // Check if the follow relationship already exists
-    const existingFollower = await Follower.findById(
-      [
-        {
-          user: followingId,
-          follower: followerId,
-        },
-      ],
-      { session }
-    );
+    // console.log("entering in try catch");
 
-    if (existingFollower) {
-      throw new ApiError(409, "you are already following this user");
-    }
-    // Add to followers of the followed user
-    await Follower.create([{ user: followingId, follower: followerId }], {
-      session,
+    // Check if the follow relationship already exists
+    const existingFollower = await Follower.findOne({
+      user: followingId,
+      follower: followerId, // Make sure this matches your schema
     });
 
+    console.log("existingFollower===>", existingFollower);
+
+    if (existingFollower) {
+      throw new ApiError(400, "You are already following this user");
+    }
+
+    // Other logic continues here
+    // throw new ApiError(409, "You are already following this use");
+
+    // Add to followers of the followed user
+    // const newFollower = await Follower.create({
+    //   user: followingId,
+    //   follower: followerId,
+    // });
+
+    // console.log("new Follower===>", newFollower);
+
     // Add to followings of the follower user
-    await Following.create([
-      {
-        user: followerId,
-        following: followingId,
-      },
-    ]);
+    // await Following.create({
+    //   user: followerId,
+    //   following: followingId,
+    // });
     // Increment follower and following counts
-    await User.findByIdAndUpdate(
-      followerId,
-      { $inc: { followingCount: 1 } },
-      { session }
-    );
+    // await User.findByIdAndUpdate(followerId, { $inc: { followingCount: 1 } });
 
-    await User.findByIdAndUpdate(
-      followingId,
-      { $inc: { followerCount: 1 } },
-      { session }
-    );
+    // await User.findByIdAndUpdate(followingId, { $inc: { followerCount: 1 } });
 
-    await session.commitTransaction();
-    session.endSession();
+    // await session.commitTransaction();
+    // session.endSession();
 
     return res
       .status(200)
       .json(new ApiResponse(200, {}, "Followed user successfully"));
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
     throw new ApiError(
       500,
       "An error occurred while following the user",

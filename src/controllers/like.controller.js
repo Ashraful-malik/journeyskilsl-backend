@@ -23,14 +23,13 @@ const toggleLike = asyncHandler(async (req, res) => {
 
   try {
     const existingLike = await Like.findOne({ userId, targetId, targetType });
-    console.log("existingLike===>", existingLike);
+
     //unlike
     if (existingLike) {
       const deletedLike = await Like.findOneAndDelete(
         { _id: existingLike._id },
         { session }
       );
-      console.log("deletedLike===>", deletedLike);
 
       await Model.findByIdAndUpdate(
         targetId,

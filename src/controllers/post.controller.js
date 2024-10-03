@@ -81,7 +81,6 @@ const createPost = asyncHandler(async (req, res) => {
     });
 
     // Save post and log task in challenge
-    // const savedPostPromise = newPost.save();
 
     challenge.taskLogs.push({
       taskId: newPost._id,
