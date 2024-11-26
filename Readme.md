@@ -12,7 +12,6 @@ Journeyskill is a web app designed to help new skill learners share their learni
 
 ## Tech Stack
 
-- Frontend: Vue.js, Nuxt.js, Tailwind CSS
 - Backend: Node.js, Express, MongoDB
 - Database: MongoDB
 
